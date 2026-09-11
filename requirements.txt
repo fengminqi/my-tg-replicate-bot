@@ -1,2 +1,2 @@
-python-telegram-bot>=20.0
-replicate>=0.22.0
+python-telegram-bot
+huggingface_hub
