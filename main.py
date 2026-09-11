@@ -4,34 +4,41 @@ from huggingface_hub import InferenceClient
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
-# 1. 获取环境变量
+# 1. 安全获取环境变量
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 HF_TOKEN = os.getenv("HF_TOKEN")
 MY_HF_MODEL = "fengminqi/my-tg-qwen2.5-7b"
 
-# 初始化 Hugging Face 推理客户端
-hf_client = InferenceClient(token=HF_TOKEN) if HF_TOKEN else InferenceClient()
+# 校验 HF_TOKEN 是否正常获取
+if HF_TOKEN:
+    print(f"🔑 已成功加载 HF_TOKEN (前缀: {HF_TOKEN[:5]}...)")
+else:
+    print("⚠️ 未找到 HF_TOKEN 环境变量！")
+
+# 初始化 InferenceClient
+client = InferenceClient(token=HF_TOKEN)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     print(f"📩 收到用户消息: {user_text}")
     
-    # 触发 Telegram 正在输入状态
+    # 触发 Telegram 的 typing（正在输入...）状态
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
-        # 使用 Hugging Face 官方 Client 直接调用你的微调模型
-        response = hf_client.chat_completion(
+        # 使用格式化 Prompt 进行文本生成
+        prompt = f"<|im_start|>user\n{user_text}<|im_end|>\n<|im_start|>assistant\n"
+        
+        response = client.text_generation(
+            prompt,
             model=MY_HF_MODEL,
-            messages=[
-                {"role": "user", "content": user_text}
-            ],
-            max_tokens=512,
+            max_new_tokens=512,
             temperature=0.7,
             top_p=0.9,
+            return_full_text=False
         )
 
-        reply_text = response.choices[0].message.content.strip()
+        reply_text = response.strip()
 
         if reply_text:
             print(f"🤖 机器人回复: {reply_text}")
