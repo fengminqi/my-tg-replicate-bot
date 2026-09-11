@@ -1,2 +1,2 @@
-python-telegram-bot==20.7
-replicate
+python-telegram-bot>=20.0
+replicate>=0.22.0
