@@ -1,43 +1,38 @@
 import os
-import logging
+import replicate
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
-import replicate
 
-# 开启基础日志
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# 1. 统一从环境变量获取密钥（不要在代码里写明文 Token）
+REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
+HF_TOKEN = os.getenv("HF_TOKEN")  # 安全读取 HF Token
+MY_HF_MODEL = "fengminqi/my-tg-qwen2.5-7b"
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
-    logger.info(f"收到用户消息: {user_text}")
-    try:
-        # 调用 Replicate 部署模型
-        output = replicate.run(
-            os.environ["REPLICATE_MODEL"],
-            input={"prompt": user_text}
-        )
-        reply = "".join(output) if isinstance(output, list) else str(output)
-        await update.message.reply_text(reply)
-    except Exception as e:
-        logger.error(f"模型调用出错: {e}")
-        await update.message.reply_text(f"模型调用出错: {e}")
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
-if __name__ == "__main__":
-    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    if not bot_token:
-        raise ValueError("未找到 TELEGRAM_BOT_TOKEN 环境变量")
-    
-    # 构建应用
-    app = ApplicationBuilder().token(bot_token).build()
-    
-    # 注册消息处理器（只处理文本消息）
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    print("Bot 正在安全启动，准备接管 Telegram 监听...")
-    
-    # drop_pending_updates=True 可以自动踢掉所有残留在后台的冲突连接
-    app.run_polling(drop_pending_updates=True)
+    try:
+        output = replicate.run(
+            "replicate/hf-inference",
+            input={
+                "model": MY_HF_MODEL,
+                "prompt": f"<|im_start|>user\n{user_text}<|im_end|>\n<|im_start|>assistant\n",
+                "hf_token": os.getenv("HF_TOKEN"),  # 从环境变量读取
+                "max_new_tokens": 512,
+                "temperature": 0.7,
+                "top_p": 0.9,
+            }
+        )
+
+        reply_text = "".join([str(item) for item in output]).strip()
+        reply_text = reply_text.replace("<|im_end|>", "").strip()
+
+        if reply_text:
+            await update.message.reply_text(reply_text)
+        else:
+            await update.message.reply_text("走神了，没想好怎么回。")
+
+    except Exception as e:
+        print(f"❌ 模型推理出错: {e}")
+        await update.message.reply_text("出了一点小故障，稍后再试试看！")
