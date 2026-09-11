@@ -31,7 +31,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if HF_TOKEN:
             input_params["hf_token"] = HF_TOKEN
 
-        # 2. 调用 Replicate 上现存的 Qwen2.5-7B 镜像端点并挂载你的专属 LoRA
+        # 2. 调用 Replicate 确切存在的 Qwen2.5 镜像端点并动态挂载 LoRA
         output = replicate.run(
             "lucataco/qwen-2.5-7b-instruct",
             input=input_params
