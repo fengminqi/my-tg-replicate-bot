@@ -1,59 +1,75 @@
 import os
+import torch
 import traceback
-from huggingface_hub import InferenceClient
+from peft import PeftModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
-# 1. 环境变量
+# 1. 环境变量配置
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-# 基座模型与你的私有 LoRA 模型
 BASE_MODEL = "Qwen/Qwen2.5-7B-Instruct"
-MY_LORA_MODEL = "fengminqi/my-tg-qwen2.5-7b"
+LORA_MODEL = "fengminqi/my-tg-qwen2.5-7b"
 
-if HF_TOKEN:
-    print(f"🔑 已成功加载 HF_TOKEN (前缀: {HF_TOKEN[:5]}...)")
-else:
-    print("⚠️ 未找到 HF_TOKEN 环境变量！")
+print("⏳ 正在加载 Tokenizer 和模型，这可能需要 1~2 分钟...")
 
-# 初始化 InferenceClient
-client = InferenceClient(token=HF_TOKEN)
+# 2. 初始化加载基座模型与你的私有 LoRA 适配器
+tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL, token=HF_TOKEN, trust_remote_code=True)
+
+# 针对 CPU / 轻量环境优化加载
+base_model = AutoModelForCausalLM.from_pretrained(
+    BASE_MODEL,
+    torch_dtype=torch.float32,
+    device_map="auto",
+    token=HF_TOKEN,
+    trust_remote_code=True
+)
+
+# 动态挂载你的私有 LoRA 权重
+model = PeftModel.from_pretrained(base_model, LORA_MODEL, token=HF_TOKEN)
+model.eval()
+
+print("✅ 模型与 LoRA 权重加载完成！")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     print(f"📩 收到用户消息: {user_text}")
     
-    # 触发 Telegram 的 typing 状态
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
-        # 调用基座模型，并通过 extra_body 挂载你的 LoRA 权重
-        response = client.chat_completion(
-            model=BASE_MODEL,
-            messages=[
-                {"role": "user", "content": user_text}
-            ],
-            max_tokens=512,
-            temperature=0.7,
-            top_p=0.9,
-            extra_body={
-                "lora_adapter": MY_LORA_MODEL
-            }
-        )
+        # 构建对话格式
+        messages = [
+            {"role": "system", "content": "你是一个幽默、接地气且富有表达力的助手，用日常随意的口吻跟用户对话。"},
+            {"role": "user", "content": user_text}
+        ]
+        
+        prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 
-        reply_text = response.choices[0].message.content.strip()
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=256,
+                temperature=0.7,
+                top_p=0.9,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id
+            )
 
-        if reply_text:
-            print(f"🤖 机器人回复: {reply_text}")
-            await update.message.reply_text(reply_text)
+        response_text = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True).strip()
+
+        if response_text:
+            print(f"🤖 机器人回复: {response_text}")
+            await update.message.reply_text(response_text)
         else:
-            print("⚠️ 模型返回内容为空")
             await update.message.reply_text("走神了，没想好怎么回。")
 
     except Exception as e:
         print("\n" + "="*50)
-        print("❌ 模型调用过程发生异常，具体报错堆栈如下：")
+        print("❌ 推理过程发生异常，具体报错堆栈如下：")
         traceback.print_exc()
         print("="*50 + "\n")
         
