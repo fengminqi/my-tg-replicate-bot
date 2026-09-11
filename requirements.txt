@@ -1,2 +1,5 @@
 python-telegram-bot
-huggingface_hub
+torch
+transformers
+peft
+accelerate
