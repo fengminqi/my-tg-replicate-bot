@@ -1,24 +1,21 @@
 import os
 import replicate
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
-
-# 1. 统一从环境变量获取密钥（不要在代码里写明文 Token）
-REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
-HF_TOKEN = os.getenv("HF_TOKEN")  # 安全读取 HF Token
-MY_HF_MODEL = "fengminqi/my-tg-qwen2.5-7b"
+from telegram.ext import ContextTypes
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
+    print(f"收到用户消息: {user_text}")
+    
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
+        # 使用 Replicate 官方 Qwen2.5-7B 镜像，并通过 lora_weights 挂载你的 HF 专属模型
         output = replicate.run(
-            "replicate/hf-inference",
+            "qwen/qwen-2.5-7b-instruct",
             input={
-                "model": MY_HF_MODEL,
-                "prompt": f"<|im_start|>user\n{user_text}<|im_end|>\n<|im_start|>assistant\n",
-                "hf_token": os.getenv("HF_TOKEN"),  # 从环境变量读取
+                "prompt": user_text,
+                "lora_weights": "fengminqi/my-tg-qwen2.5-7b",  # 填入你的 HF 模型路径
                 "max_new_tokens": 512,
                 "temperature": 0.7,
                 "top_p": 0.9,
@@ -26,7 +23,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         reply_text = "".join([str(item) for item in output]).strip()
-        reply_text = reply_text.replace("<|im_end|>", "").strip()
 
         if reply_text:
             await update.message.reply_text(reply_text)
@@ -34,5 +30,5 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("走神了，没想好怎么回。")
 
     except Exception as e:
-        print(f"❌ 模型推理出错: {e}")
+        print(f"❌ 模型调用出错: {e}")
         await update.message.reply_text("出了一点小故障，稍后再试试看！")
