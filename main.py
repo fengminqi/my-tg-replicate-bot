@@ -22,18 +22,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         input_params = {
             "prompt": user_text,
             "lora_weights": MY_HF_MODEL,
-            "max_new_tokens": 512,
+            "max_tokens": 512,
             "temperature": 0.7,
             "top_p": 0.9,
         }
         
-        # 如果配置了 HF_TOKEN，自动传入以支持私有模型读取
+        # 如果配置了 HF_TOKEN，自动传入以支持读取私有模型
         if HF_TOKEN:
             input_params["hf_token"] = HF_TOKEN
 
-        # 2. 使用 Replicate 官方支持动态挂载 HF LoRA 权重的稳定端点
+        # 使用带完整 Version Hash 的 Replicate 容器端点
+        # 该端点是 Replicate 上专门用于运行 Qwen2/2.5 并动态加载 HuggingFace LoRA 权重的服务
         output = replicate.run(
-            "qwen/qwen-2.5-72b-instruct",
+            "lucataco/qwen-2.5-7b-instruct:800c1964205f42a5a54e9514e8248c894f71587ff78e1f574d5c1cb08e3332a6",
             input=input_params
         )
 
