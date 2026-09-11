@@ -1,5 +1,2 @@
 python-telegram-bot
-torch
-transformers
-peft
-accelerate
+httpx
