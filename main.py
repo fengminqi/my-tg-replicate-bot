@@ -31,9 +31,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if HF_TOKEN:
             input_params["hf_token"] = HF_TOKEN
 
-        # 2. 调用 Replicate 上有效存在的端点并挂载你的 LoRA 模型
+        # 2. 使用 Replicate 官方支持动态挂载 HF LoRA 权重的稳定端点
         output = replicate.run(
-            "zsxkib/qwen2-7b-instruct",
+            "qwen/qwen-2.5-72b-instruct",
             input=input_params
         )
 
