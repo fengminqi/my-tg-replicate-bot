@@ -1,0 +1,29 @@
+services:
+  - type: worker
+    name: my-tg-qwen15b-bot
+    runtime: python
+    plan: 1c-2g
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    autoDeploy: true
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: MODEL_REPO_ID
+        value: fengminqi/my-tg-qwen1.5b-style
+      - key: MODEL_FILENAME
+        value: qwen15b-style-Q4_K_M.gguf
+      - key: MAX_HISTORY
+        value: "8"
+      - key: MAX_OUTPUT_TOKENS
+        value: "256"
+      - key: N_CTX
+        value: "2048"
+      - key: N_THREADS
+        value: "2"
+      - key: TEMPERATURE
+        value: "0.8"
+      - key: ALLOWED_CHAT_IDS
+        sync: false
